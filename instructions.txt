@@ -6,6 +6,6 @@ L2: MUL rA, rB, rC
 JAL label
 BEQ rA, rB, offset
 STORE rA, 10(rB)
-LOAD x1, 12(x2)
+LOAD r1, 12(r2)
 RET
 L1: ADD rA, rB, rC

@@ -8,6 +8,9 @@
 using namespace std;
 
 
+
+
+
 struct instruction {
     string type = ""; // instruction type
     int index = -1; // index in program
@@ -16,7 +19,7 @@ struct instruction {
     string rs1,rs2,rd = ""; // registers if exist
     int imm =0; // immediate if exist
     int offset = 0; // offset if exist
-    bool isLabel = 0; // to not confuse labels with instructions
+    bool isLabel = 0; // to not confuse labels with instructions 
     
 };
 
@@ -222,9 +225,11 @@ void get_instructions(string filename, vector<instruction> &instructions,map<str
     }
     print_instructions(instructions);
     // print labels
+    cout<<"-----------------Labels-----------------"<<endl;
     for(auto it=labels.begin(); it!=labels.end(); it++) {
         cout<<it->first<<" index: "<<it->second<<endl;
     }
+    cout<<"----------------------------------------"<<endl;
 
 }
 
@@ -235,8 +240,15 @@ int main()
     cout<<"Starting"<<endl;
     vector<instruction> instructions;
     map<string, int> labels;
+    map<string, int> registers; // 8 registers (r0-r7) IMPPP make sureeee r0 is always 0
+    for(int i=0; i<8; i++) {
+        registers["r"+to_string(i)] = 0;
+    }
+
 
     get_instructions("instructions.txt", instructions,labels);
+
+
     
     return 0;
 }
