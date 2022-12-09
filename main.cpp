@@ -3,11 +3,229 @@
 #include<sstream>
 #include<string>
 #include<vector>
-#include<map>
+#include<unordered_map>
 
 using namespace std;
 
+//global variables
+unordered_map<string, int> regs; // 8 registers (r0-r7) IMPPP make sureeee r0 is always 0
+unordered_map<int, int> mem; // 256 memory locations (m0-m255)
 
+
+
+
+class RSRow {
+    public:
+    string name, instStatus;
+    string type;
+    int id, instIdx, remCycles;
+    int result;
+    bool busy, predicted;
+    virtual void print() = 0;
+    void decCounter() {
+        remCycles--;
+    }
+    bool done() {
+        return remCycles == 0;
+    }
+};
+
+class LoadRSRow : public RSRow {
+    public:
+    int Vj, Qj, A;
+    LoadRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        A = 0;
+        predicted = false;
+        type = "LOAD"
+    }
+    void free() {
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        A = 0;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
+
+class StoreRSRow : public RSRow {
+    public:
+    int Vj, Qj, Vk, Qk, A;
+    StoreRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        Vk = -1;
+        Qk = -1;
+        A = 0;
+        predicted = false;
+        type = "STORE"
+    }
+    void free() {
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        Vk = -1;
+        Qk = -1;
+        A = 0;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
+
+class BEQRSRow : public RSRow {
+    public:
+    int Vj, Qj, Vk, Qk, pc, jumpPC;
+    bool jump;
+    BEQRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        Vk = -1;
+        Qk = -1;
+        predicted = false;
+        type = "BEQ";
+    }
+    void free() {
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        Vk = -1;
+        Qk = -1;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
+
+
+class UJumpRSRow : public RSRow {
+    public:
+    string op;
+    int pc, jumpPC;
+    bool jump;
+    UJumpRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        busy = false;
+        predicted = false;
+        type = "JAL";
+    }
+    void free() {
+        busy = false;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
+
+class AdderRSRow : public RSRow {
+    public:
+    string op;
+    int Vj, Qj, Vk, Qk;
+    AdderRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        busy = false;
+        predicted = false;
+        type = "ADD";
+    }
+    void free() {
+        busy = false;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
+
+class NEGRSRow : public RSRow {
+    public:
+    int Vj, Qj;
+    NEGRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        Vj = -1;
+        Qj = -1;
+        busy = false;
+        predicted = false;
+        type = "NEG";
+    }
+    void free() {
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
+
+class NORRSRow : public RSRow {
+    public:
+    string op;
+    int Vj, Qj, Vk, Qk;
+    NORRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        busy = false;
+        predicted = false;
+        type = "NOR";
+    }
+    void free() {
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
+
+class MULRSRow : public RSRow {
+    public:
+    string op;
+    int Vj, Qj, Vk, Qk;
+    MULRSRow(int idIn, string nameIn) {
+        id = idIn;
+        name = nameIn;
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        Vk = -1;
+        Qk = -1;
+        predicted = false;
+        type = "MUL";
+    }
+    void free() {
+        busy = false;
+        Vj = -1;
+        Qj = -1;
+        Vk = -1;
+        Qk = -1;
+        predicted = false;
+    }
+    void print() {
+        cout << "id: " << id << '\n';
+    }
+};
 
 
 
@@ -225,7 +443,7 @@ void print_instructions(vector<instruction> instructions) {
 }
 
 // get instructions
-void get_instructions(string filename, vector<instruction> &instructions,map<string,int>&labels) {
+void get_instructions(string filename, vector<instruction> &instructions,unordered_map<string,int>&labels) {
     // read file
     vector<vector<string>> program;
     read_file(filename, program);
@@ -250,18 +468,132 @@ void get_instructions(string filename, vector<instruction> &instructions,map<str
 
 
 
+
+void add(string src1, string src2, string des)
+{
+    regs[des] = regs[src1] + regs[src2];
+}
+void neg(string src1, string des)
+{
+    regs[des] = ~(regs[src1]);
+}
+void nor(string src1, string src2, string des)
+{
+    regs[des] = ~(regs[src1] | regs[src2]);
+}
+void addi(string src1, int imm, string des)
+{
+    regs[des] = regs[src1] + imm;
+}
+void mul(string src1, string src2, string des)
+{
+    regs[des] = regs[src1] * regs[src2];
+}
+bool beq(string src1, string src2)
+{
+    if (regs[src1] == regs[src2])
+        return true;
+    else
+        return false;
+}
+
+void load(string ra, int off, string rb)
+{
+    regs[ra] = mem[off + regs[rb]];
+}
+
+void store(string ra, int off, string rb)
+{
+    mem[off + regs[rb]] = regs[ra];
+}
+
+
+
+
+
 int main() 
 {
+
+
+
     cout<<"Starting"<<endl;
+
+    vector<RSRow*> reservTable;
+
+    LoadRSRow *load1 = new LoadRSRow(0, "load1");
+    reservTable.push_back(load1);
+    LoadRSRow *load2 = new LoadRSRow(1, "load2");
+    reservTable.push_back(load2);
+
+    StoreRSRow *store1 = new StoreRSRow(2, "store1");
+    reservTable.push_back(store1);
+    StoreRSRow *store2 = new StoreRSRow(3, "store2");
+    reservTable.push_back(store2);
+
+    BEQRSRow *beq1 = new BEQRSRow(4, "beq1");
+    reservTable.push_back(beq1);
+
+    UJumpRSRow *jump1 = new UJumpRSRow(5, "jump1");
+    reservTable.push_back(jump1);
+
+    AdderRSRow *adder1 = new AdderRSRow(6, "adder1");
+    reservTable.push_back(adder1);
+    AdderRSRow *adder2 = new AdderRSRow(7, "adder2");
+    reservTable.push_back(adder2);
+    AdderRSRow *adder3 = new AdderRSRow(8, "adder3");
+    reservTable.push_back(adder3);
+
+    NEGRSRow *neg1 = new NEGRSRow(9, "neg1");
+    reservTable.push_back(neg1);
+
+    NORRSRow *nor1 = new NORRSRow(10, "nor1");
+    reservTable.push_back(nor1);
+
+    MULRSRow *mul1 = new MULRSRow(11, "mul1");
+    reservTable.push_back(mul1);
+
     vector<instruction> instructions;
-    map<string, int> labels;
-    map<string, int> registers; // 8 registers (r0-r7) IMPPP make sureeee r0 is always 0
+    unordered_map<string, int> labels;
+   
     for(int i=0; i<8; i++) {
-        registers["r"+to_string(i)] = 0;
+        regs["r"+to_string(i)] = 0;
     }
 
-
     get_instructions("instructions.txt", instructions,labels);
+    int pc = 0;
+    while(true)
+    {
+        instruction current = instructions[pc];
+        string type = current.type;
+        string rs;
+
+
+        // Handle having a station handling multiple instructions
+        if (current.type == "ADDI")
+            rs = "ADD";
+        else if (current.type == "RET")
+            rs = "JAL";
+        else
+            rs = current.type;
+
+        for (int i = 0; i < reservTable.size(); i++)
+        {
+            if ((reservTable[i]->type == rs) && (!reservTable[i]->busy)){
+                reservTable[i]->issue(current);
+            }
+
+        }
+        
+        
+
+
+        
+
+
+
+    }
+
+    
 
 
 

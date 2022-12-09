@@ -6,6 +6,8 @@
         "unordered_map": "cpp",
         "string": "cpp",
         "iosfwd": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "__hash_table": "cpp",
+        "ostream": "cpp"
     }
 }

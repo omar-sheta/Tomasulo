@@ -3,31 +3,28 @@
 #include <string>
 #include <cstdlib>
 using namespace std;
-// alo
-unordered_map<int, int> mem;
-unordered_map<int, int> regs;
 
-void add(int src1, int src2, int des)
+void add(string src1, string src2, string des)
 {
     regs[des] = regs[src1] + regs[src2];
 }
-void neg(int src1, int des)
+void neg(string src1, string des)
 {
     regs[des] = ~(regs[src1]);
 }
-void nor(int src1, int src2, int des)
+void nor(string src1, string src2, string des)
 {
     regs[des] = ~(regs[src1] | regs[src2]);
 }
-void addi(int src1, int imm, int des)
+void addi(string src1, string imm, string des)
 {
     regs[des] = regs[src1] + imm;
 }
-void mul(int src1, int src2, int des)
+void mul(string src1, string src2, string des)
 {
     regs[des] = regs[src1] * regs[src2];
 }
-bool beq(int src1, int src2)
+bool beq(string src1, string src2)
 {
     if (regs[src1] == regs[src2])
         return true;
@@ -35,17 +32,17 @@ bool beq(int src1, int src2)
         return false;
 }
 
-void load(int ra, int off, int rb)
+void load(string ra, string off, string rb)
 {
     regs[ra] = mem[off + regs[rb]];
 }
 
-void store(int ra, int off, int rb)
+void store(string ra, string off, string rb)
 {
     mem[off + regs[rb]] = regs[ra];
 }
 
-int main()
+string main()
 {
     return 0;
 }
