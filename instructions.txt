@@ -1,11 +1,11 @@
-ADD rA, rB, rC
-ADDI rA, rB, 12
-NEG rA, rB
-NOR rA, rB, rC
-L2: MUL rA, rB, rC
+ADD r4, r5, r7
+ADDI r1, r1, 12
+NEG r2, r3
+NOR r1, r2, r6
+L2: MUL r4, r5, r6
 JAL label
-BEQ rA, rB, offset
-STORE rA, 10(rB)
+BEQ r1, r3, -2
+STORE r1, 10(r2)
 LOAD r1, 12(r2)
 RET
-L1: ADD rA, rB, rC
+L1: ADD r5, r2, r1

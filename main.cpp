@@ -157,7 +157,7 @@ for (int i=0; i<program.size(); i++) {
             temp.cycle = 1;
             temp.rs1 = program[i][1];
             temp.rs2 = program[i][2];
-            temp.label = program[i][3];
+            temp.offset = stoi(program[i][3]);
             instructions.push_back(temp);
         }else if(program[i][0] == "LOAD") { //LOAD x1, offset(x2) load from memory address rB+offset to rA  
                                             // Make sure to use rd and rs1 for this instruction
@@ -225,11 +225,11 @@ void get_instructions(string filename, vector<instruction> &instructions,map<str
     }
     print_instructions(instructions);
     // print labels
-    cout<<"-----------------Labels-----------------"<<endl;
+    cout<<"-------------labels--------------"<<endl;
     for(auto it=labels.begin(); it!=labels.end(); it++) {
         cout<<it->first<<" index: "<<it->second<<endl;
     }
-    cout<<"----------------------------------------"<<endl;
+    cout<<"---------------------------------"<<endl;
 
 }
 
