@@ -3,7 +3,7 @@
 #include <string>
 #include <cstdlib>
 using namespace std;
-
+// alo
 unordered_map<int, int> mem;
 unordered_map<int, int> regs;
 
