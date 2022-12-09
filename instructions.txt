@@ -1,0 +1,10 @@
+ADD rA, rB, rC
+ADDI rA, rB, imm
+NEG rA, rB
+NOR rA, rB, rC
+MUL rA, rB, rC
+JAL label
+BEQ rA, rB, offset
+STORE rA, offset(rB)
+LOAD rA, offset(rB)
+RET
