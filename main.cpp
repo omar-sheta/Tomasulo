@@ -7,12 +7,52 @@
 
 using namespace std;
 
-//global variables
+//global variables for memory and reg 
 unordered_map<string, int> regs; // 8 registers (r0-r7) IMPPP make sureeee r0 is always 0
 unordered_map<int, int> mem; // 256 memory locations (m0-m255)
+unordered_map<string, int> labels; // labels found 
+unordered_map<string, int> reg_status; // register status
 
+int pc = 0; // program counter
 
+int neg(int src1)
+{
+    return ~src1;
+}
+int nor(int src1, int src2)
+{
+    return(~(src1 | src2));
+}
+int add(int src1, int src2)
+{
+    return src1+ src2;
+}
+int addi(int src1, int imm)
+{
+    return src1 + imm;
+}
+int mul(int src1, int src2)
+{
+    return src1 * src2;
+}
+bool beq(int src1, int src2){   
+    return src1 == src2;
+}
+int load(int address)
+{
+    return mem[address];
+}
 
+struct instruction {
+    string type = ""; // instruction type
+    int index = -1; // index in program
+    int cycle = -1; // cycle numbers needed
+    string rs1, rs2, rd = ""; // registers if exist
+    int imm = 0; // immediate if exist
+    int offset = 0; // offset if exist
+    string label_before = ""; // to not confuse labels with instructions in the beginning of the line
+    string label_after = ""; // to not confuse labels with instructions in the end of the line
+};
 
 class RSRow {
     public:
@@ -22,6 +62,8 @@ class RSRow {
     int result;
     bool busy, predicted;
     virtual void print() = 0;
+    virtual void issue(instruction inst) = 0;
+    virtual void execute() = 0;
     void decCounter() {
         remCycles--;
     }
@@ -41,7 +83,7 @@ class LoadRSRow : public RSRow {
         Qj = -1;
         A = 0;
         predicted = false;
-        type = "LOAD"
+        type = "LOAD";
     }
     void free() {
         busy = false;
@@ -50,6 +92,24 @@ class LoadRSRow : public RSRow {
         A = 0;
         predicted = false;
     }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        A = inst.offset;
+        if (reg_status[inst.rs1] != -1) {
+            Qj = reg_status[inst.rs1];
+        } else {
+            Vj = regs[inst.rs1];
+            Qj = 0;
+        }
+        busy = true;
+        reg_status[inst.rd] = id;
+    }
+    void execute( ) {
+        A = A+Vj;
+        result =load(A);
+    }
+    
     void print() {
         cout << "id: " << id << '\n';
     }
@@ -68,7 +128,7 @@ class StoreRSRow : public RSRow {
         Qk = -1;
         A = 0;
         predicted = false;
-        type = "STORE"
+        type = "STORE";
     }
     void free() {
         busy = false;
@@ -79,6 +139,28 @@ class StoreRSRow : public RSRow {
         A = 0;
         predicted = false;
     }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        A = inst.offset;
+        if (reg_status[inst.rs1] != -1) {
+            Qj = reg_status[inst.rs1];
+        } else {
+            Vj = regs[inst.rs1];
+            Qj = 0;
+        }
+        if (reg_status[inst.rs2] != -1) {
+            Qk = reg_status[inst.rs2];
+        } else {
+            Vk = regs[inst.rs2];
+            Qk = 0;
+        }
+        busy = true;
+        reg_status[inst.rd] = id;
+    }
+    void execute( ) {
+        A = A + Vj;
+    }
     void print() {
         cout << "id: " << id << '\n';
     }
@@ -86,7 +168,8 @@ class StoreRSRow : public RSRow {
 
 class BEQRSRow : public RSRow {
     public:
-    int Vj, Qj, Vk, Qk, pc, jumpPC;
+    int Vj, Qj, Vk, Qk, currPC, jumpPC;
+    string label;
     bool jump;
     BEQRSRow(int idIn, string nameIn) {
         id = idIn;
@@ -107,16 +190,39 @@ class BEQRSRow : public RSRow {
         Qk = -1;
         predicted = false;
     }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        currPC = pc;
+        if (reg_status[inst.rs1] != -1) {
+            Qj = reg_status[inst.rs1];
+        } else {
+            Vj = regs[inst.rs1];
+            Qj = 0;
+        }
+        if (reg_status[inst.rs2] != -1) {
+            Qk = reg_status[inst.rs2];
+        } else {
+            Vk = regs[inst.rs2];
+            Qk = 0;
+        }
+        jumpPC = labels[inst.label_after];
+        busy = true;
+    }
+        void execute() {
+       jump =beq(Vj,Qj);
+       jumpPC=labels[label];
+    }
     void print() {
         cout << "id: " << id << '\n';
     }
 };
 
-
 class UJumpRSRow : public RSRow {
     public:
     string op;
-    int pc, jumpPC;
+    int currPC, jumpPC, Vj, Qj;
+    string label;
     bool jump;
     UJumpRSRow(int idIn, string nameIn) {
         id = idIn;
@@ -124,10 +230,38 @@ class UJumpRSRow : public RSRow {
         busy = false;
         predicted = false;
         type = "JAL";
+        Vj = -1;
+        Qj = -1;
+        label = "";
     }
     void free() {
         busy = false;
         predicted = false;
+        Vj = -1;
+        Qj = -1;
+        label = "";
+    }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        busy = true;
+        op = inst.type;
+        if (op == "JAL") {
+            reg_status["r1"] = id;
+            currPC = pc;
+            jumpPC = labels[inst.label_after];
+        } else {
+            if (reg_status["r1"] != -1) {
+                Qj = reg_status["r1"];
+            } else {
+                Vj = regs["r1"];
+                Qj = 0;
+            }
+        }
+    }
+    void execute() {
+       jump =1;
+       jumpPC=labels[label];
     }
     void print() {
         cout << "id: " << id << '\n';
@@ -137,7 +271,7 @@ class UJumpRSRow : public RSRow {
 class AdderRSRow : public RSRow {
     public:
     string op;
-    int Vj, Qj, Vk, Qk;
+    int Vj, Qj, Vk, Qk, imm;
     AdderRSRow(int idIn, string nameIn) {
         id = idIn;
         name = nameIn;
@@ -148,6 +282,35 @@ class AdderRSRow : public RSRow {
     void free() {
         busy = false;
         predicted = false;
+    }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        op = inst.type;
+        if (reg_status[inst.rs1] != -1) {
+            Qj = reg_status[inst.rs1];
+        } else {
+            Vj = regs[inst.rs1];
+            Qj = 0;
+        }
+        if (op == "ADD") {
+            if (reg_status[inst.rs2] != -1) {
+                Qk = reg_status[inst.rs2];
+            } else {
+                Vk = regs[inst.rs2];
+                Qk = 0;
+            }
+        } else {
+            imm = inst.imm;
+        }
+        busy = true;
+        reg_status[inst.rd] = id;
+    }
+    void execute() {
+        if (op=="ADDI")
+        result=addi(Vj,Vk);
+        else
+        result =add(Vj,Vk);
     }
     void print() {
         cout << "id: " << id << '\n';
@@ -172,6 +335,21 @@ class NEGRSRow : public RSRow {
         Qj = -1;
         predicted = false;
     }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        if (reg_status[inst.rs1] != -1) {
+            Qj = reg_status[inst.rs1];
+        } else {
+            Vj = regs[inst.rs1];
+            Qj = 0;
+        }
+        busy = true;
+        reg_status[inst.rd] = id;
+    }
+    void execute() {
+        result = neg(Vj);
+    }
     void print() {
         cout << "id: " << id << '\n';
     }
@@ -179,7 +357,6 @@ class NEGRSRow : public RSRow {
 
 class NORRSRow : public RSRow {
     public:
-    string op;
     int Vj, Qj, Vk, Qk;
     NORRSRow(int idIn, string nameIn) {
         id = idIn;
@@ -192,7 +369,30 @@ class NORRSRow : public RSRow {
         busy = false;
         Vj = -1;
         Qj = -1;
+        Vk = -1;
+        Qk = -1;
         predicted = false;
+    }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        if (reg_status[inst.rs1] != -1) {
+            Qj = reg_status[inst.rs1];
+        } else {
+            Vj = regs[inst.rs1];
+            Qj = 0;
+        }
+        if (reg_status[inst.rs2] != -1) {
+            Qk = reg_status[inst.rs2];
+        } else {
+            Vk = regs[inst.rs2];
+            Qk = 0;
+        }
+        busy = true;
+        reg_status[inst.rd] = id;
+    }
+    void execute() {
+        result=nor(Vj,Vk);
     }
     void print() {
         cout << "id: " << id << '\n';
@@ -222,26 +422,31 @@ class MULRSRow : public RSRow {
         Qk = -1;
         predicted = false;
     }
+    void issue(instruction inst) {
+        instIdx = inst.index;
+        remCycles = inst.cycle;
+        if (reg_status[inst.rs1] != -1) {
+            Qj = reg_status[inst.rs1];
+        } else {
+            Vj = regs[inst.rs1];
+            Qj = 0;
+        }
+        if (reg_status[inst.rs2] != -1) {
+            Qk = reg_status[inst.rs2];
+        } else {
+            Vk = regs[inst.rs2];
+            Qk = 0;
+        }
+        busy = true;
+        reg_status[inst.rd] = id;
+    }
+    void execute( ) {
+        result=mul(Vj,Vk);
+    }
     void print() {
         cout << "id: " << id << '\n';
     }
 };
-
-
-
-struct instruction {
-    string type = ""; // instruction type
-    int index = -1; // index in program
-    int cycle = -1; // cycle numbers needed
-    string rs1,rs2,rd = ""; // registers if exist
-    int imm =0; // immediate if exist
-    int offset = 0; // offset if exist
-    string label_before = ""; // to not confuse labels with instructions in the beginning of the line
-    string label_after = ""; // to not confuse labels with instructions in the end of the line
-
-    
-};
-
 
 // read words and store in 2d vector of strings
 void read_file(string filename, vector<vector<string>> &words) {
@@ -262,17 +467,12 @@ void read_file(string filename, vector<vector<string>> &words) {
     }
 }
 
-
 // program is a 2d vector of strings containing the instructions and labels if exist
 // build vector of instructions structs
 void parse_instructions(vector<vector<string>> program, vector<instruction> &instructions) 
-{
-    
-
+{  
 for (int i=0; i<program.size(); i++) {
 
-
-        
         // L1: ADD rA, rB, rC label instruction is the same as ADD rA, rB, rC but with a label
         // check if the first word is a label
         if(program[i][0][program[i][0].size()-1] == ':') {
@@ -366,7 +566,6 @@ for (int i=0; i<program.size(); i++) {
             temp.rs1 = program[i][2];
             instructions.push_back(temp);
 
-
         }else if(program[i][0] == "JAL") {//JAL label
             instruction temp;
             temp.type = program[i][0];
@@ -374,7 +573,6 @@ for (int i=0; i<program.size(); i++) {
             temp.cycle = 1;
             temp.label_after = program[i][1];
             instructions.push_back(temp);
-
 
         }else if(program[i][0] == "RET") { //RET
             instruction temp;
@@ -410,7 +608,7 @@ for (int i=0; i<program.size(); i++) {
                                             // rs1 is the register to store and rs2 is the register to add to the offset
             temp.type = program[i][0];
             temp.index = i;
-            temp.cycle = 3;
+            temp.cycle = 2;
             temp.rs1 = program[i][1];
             temp.offset = stoi(program[i][2].substr(0, program[i][2].size()-4));
             temp.rs2 = program[i][2].substr(program[i][2].size()-3, 2);
@@ -442,6 +640,8 @@ void print_instructions(vector<instruction> instructions) {
     }
 }
 
+
+
 // get instructions
 void get_instructions(string filename, vector<instruction> &instructions,unordered_map<string,int>&labels) {
     // read file
@@ -466,58 +666,9 @@ void get_instructions(string filename, vector<instruction> &instructions,unorder
 
 }
 
-
-
-
-void add(string src1, string src2, string des)
-{
-    regs[des] = regs[src1] + regs[src2];
-}
-void neg(string src1, string des)
-{
-    regs[des] = ~(regs[src1]);
-}
-void nor(string src1, string src2, string des)
-{
-    regs[des] = ~(regs[src1] | regs[src2]);
-}
-void addi(string src1, int imm, string des)
-{
-    regs[des] = regs[src1] + imm;
-}
-void mul(string src1, string src2, string des)
-{
-    regs[des] = regs[src1] * regs[src2];
-}
-bool beq(string src1, string src2)
-{
-    if (regs[src1] == regs[src2])
-        return true;
-    else
-        return false;
-}
-
-void load(string ra, int off, string rb)
-{
-    regs[ra] = mem[off + regs[rb]];
-}
-
-void store(string ra, int off, string rb)
-{
-    mem[off + regs[rb]] = regs[ra];
-}
-
-
-
-
-
 int main() 
 {
-
-
-
     cout<<"Starting"<<endl;
-
     vector<RSRow*> reservTable;
 
     LoadRSRow *load1 = new LoadRSRow(0, "load1");
@@ -552,22 +703,30 @@ int main()
     MULRSRow *mul1 = new MULRSRow(11, "mul1");
     reservTable.push_back(mul1);
 
+
+
     vector<instruction> instructions;
-    unordered_map<string, int> labels;
-   
+    
     for(int i=0; i<8; i++) {
         regs["r"+to_string(i)] = 0;
     }
 
+
+    // reg_status contains registers from r0 to r7 and their status initially set to -1
+    for(int i=0; i<8; i++) {
+        reg_status["r"+to_string(i)] = -1;
+    }
+
+
     get_instructions("instructions.txt", instructions,labels);
-    int pc = 0;
+    int cycles = 0;
+    int instruction_counter = 0;
     while(true)
     {
+        cycles++;
         instruction current = instructions[pc];
         string type = current.type;
         string rs;
-
-
         // Handle having a station handling multiple instructions
         if (current.type == "ADDI")
             rs = "ADD";
@@ -576,26 +735,29 @@ int main()
         else
             rs = current.type;
 
+
+        
+
+
+       
         for (int i = 0; i < reservTable.size(); i++)
         {
             if ((reservTable[i]->type == rs) && (!reservTable[i]->busy)){
                 reservTable[i]->issue(current);
             }
-
         }
-        
-        
 
 
-        
+        // execute instructions
+        // for(int i = 0; i<reservTable.size(); i++) {
+        //     if(reservTable[i]->type == "ADD" || reservTable[i]->type == "ADDI" || reservTable[i]->type == "NOR" || reservTable[i]->type == "MUL" || reservTable[i]->type=="BEQ"){
+               
 
+        //     }
+
+        // }
 
 
     }
-
-    
-
-
-
     return 0;
 }
