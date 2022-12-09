@@ -15,11 +15,12 @@ struct instruction {
     string type = ""; // instruction type
     int index = -1; // index in program
     int cycle = -1; // cycle numbers needed
-    string label = ""; // empty string if no label
     string rs1,rs2,rd = ""; // registers if exist
     int imm =0; // immediate if exist
     int offset = 0; // offset if exist
-    bool isLabel = 0; // to not confuse labels with instructions 
+    string label_before = ""; // to not confuse labels with instructions in the beginning of the line
+    string label_after = ""; // to not confuse labels with instructions in the end of the line
+
     
 };
 
@@ -59,8 +60,7 @@ for (int i=0; i<program.size(); i++) {
         if(program[i][0][program[i][0].size()-1] == ':') {
             // if it is a label, remove the colon and store it in the label field of the instruction
             instruction temp;
-            temp.label = program[i][0].substr(0, program[i][0].size()-1);
-            temp.isLabel = 1;
+            temp.label_before = program[i][0].substr(0, program[i][0].size()-1);
             // check if the next word is an instruction
             if(program[i][1] == "ADD" || program[i][1] == "NOR" || program[i][1] == "MUL") {
                 temp.type = program[i][1];
@@ -93,6 +93,21 @@ for (int i=0; i<program.size(); i++) {
                 temp.cycle = 1;
                 temp.rd = program[i][2]; // negate rB and store in rA -> rA = -rB
                 temp.rs1 = program[i][3];
+                instructions.push_back(temp);
+            } else if(program[i][1]=="BEQ"){ //l1: BEQ rA, rB, label
+                temp.type = program[i][1];
+                temp.index = i;
+                temp.cycle = 1;
+                temp.rs1 = program[i][2];
+                temp.rs2 = program[i][3];
+                temp.label_after = program[i][4];
+                instructions.push_back(temp);
+
+            } else if(program[i][1] == "JAL"){ //L2: JAL label
+                temp.type = program[i][1];
+                temp.index = i;
+                temp.cycle = 1;
+                temp.label_after = program[i][2];
                 instructions.push_back(temp);
             }
         } else
@@ -139,7 +154,7 @@ for (int i=0; i<program.size(); i++) {
             temp.type = program[i][0];
             temp.index = i;
             temp.cycle = 1;
-            temp.label = program[i][1];
+            temp.label_after = program[i][1];
             instructions.push_back(temp);
 
 
@@ -152,12 +167,12 @@ for (int i=0; i<program.size(); i++) {
 
         }else if(program[i][0] == "BEQ") { //BEQ rA, rB, label
             instruction temp;
-            temp.type = program[i][0];
+            temp.type = program[i][1];
             temp.index = i;
             temp.cycle = 1;
-            temp.rs1 = program[i][1];
-            temp.rs2 = program[i][2];
-            temp.offset = stoi(program[i][3]);
+            temp.rs1 = program[i][2];
+            temp.rs2 = program[i][3];
+            temp.label_after = program[i][4];
             instructions.push_back(temp);
         }else if(program[i][0] == "LOAD") { //LOAD x1, offset(x2) load from memory address rB+offset to rA  
                                             // Make sure to use rd and rs1 for this instruction
@@ -201,9 +216,9 @@ void print_instructions(vector<instruction> instructions) {
         cout<<"Rs1: "<<instructions[i].rs1<<endl;
         cout<<"Rs2: "<<instructions[i].rs2<<endl;
         cout<<"Imm: "<<instructions[i].imm<<endl;
-        cout<<"Label: "<<instructions[i].label<<endl;
         cout<<"Offset: "<<instructions[i].offset<<endl;
-        cout<<"isLabel: "<<instructions[i].isLabel<<endl;
+        cout<<"Label before: "<<instructions[i].label_before<<endl;
+        cout<<"Label after: "<<instructions[i].label_after<<endl;
         cout<<"---------------------------------"<<endl;
         cout<<endl;
     }
@@ -219,8 +234,8 @@ void get_instructions(string filename, vector<instruction> &instructions,map<str
 
     // get labels
     for(int i=0; i<instructions.size(); i++) {
-        if(instructions[i].isLabel) {
-            labels[instructions[i].label] = i;
+        if(instructions[i].label_before != "") {
+            labels[instructions[i].label_before] = i;
         }
     }
     print_instructions(instructions);
@@ -249,6 +264,6 @@ int main()
     get_instructions("instructions.txt", instructions,labels);
 
 
-    
+
     return 0;
 }

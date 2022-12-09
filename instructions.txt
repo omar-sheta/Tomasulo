@@ -4,7 +4,7 @@ NEG r2, r3
 NOR r1, r2, r6
 L2: MUL r4, r5, r6
 JAL label
-BEQ r1, r3, -2
+L3: BEQ r1, r3, L1
 STORE r1, 10(r2)
 LOAD r1, 12(r2)
 RET
